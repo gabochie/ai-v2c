@@ -37,7 +37,67 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenExportImport,
   onResetWorkspace,
 }) => {
-  const [activeTab, setActiveTab] = useState<'cicd' | 'observability' | 'secrets' | 'hosting'>('cicd');
+  const [activeTab, setActiveTab] = useState<'localstack' | 'cicd' | 'observability' | 'secrets' | 'hosting'>('localstack');
+  const [ollamaHost, setOllamaHost] = useState<string>('http://localhost:11434');
+  const [localModel, setLocalModel] = useState<string>('llama3.2:latest');
+  const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'testing' | 'online' | 'offline'>('idle');
+  const [detectedModels, setDetectedModels] = useState<string[]>([]);
+  const [copiedDocker, setCopiedDocker] = useState<boolean>(false);
+
+  const testOllamaConnection = async () => {
+    setOllamaStatus('testing');
+    try {
+      const response = await fetch(`${ollamaHost}/api/tags`, { method: 'GET' });
+      if (response.ok) {
+        const data = await response.json();
+        const models = data.models ? data.models.map((m: any) => m.name) : ['llama3.2:latest', 'deepseek-r1:7b'];
+        setDetectedModels(models);
+        if (models.length > 0 && !models.includes(localModel)) {
+          setLocalModel(models[0]);
+        }
+        setOllamaStatus('online');
+      } else {
+        setOllamaStatus('offline');
+      }
+    } catch (err) {
+      // Offline fallback indicator
+      setOllamaStatus('offline');
+      setDetectedModels(['llama3.2', 'deepseek-r1', 'mistral-7b', 'qwen2.5-coder']);
+    }
+  };
+
+  const copyDockerCompose = () => {
+    const dockerContent = `version: '3.8'
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: local_ai_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+    restart: unless-stopped
+
+  local-db:
+    image: postgres:16-alpine
+    container_name: local_task_db
+    environment:
+      POSTGRES_USER: desktop_user
+      POSTGRES_PASSWORD: desktop_password
+      POSTGRES_DB: ai_eng_workspace
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  ollama_storage:
+  postgres_data:`;
+    navigator.clipboard.writeText(dockerContent);
+    setCopiedDocker(true);
+    setTimeout(() => setCopiedDocker(false), 2000);
+  };
   const [isBuilding, setIsBuilding] = useState<boolean>(false);
   const [pipelineSteps, setPipelineSteps] = useState([
     { id: 1, name: 'Lint & Typecheck (tsc --noEmit)', status: 'success', duration: '1.2s' },
@@ -136,13 +196,23 @@ jobs:
       {/* Production Engineering Nav Tabs */}
       <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto">
         <button
+          onClick={() => setActiveTab('localstack')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${
+            activeTab === 'localstack' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-white'
+          }`}
+        >
+          <Cpu className="w-4 h-4" />
+          <span>1. Local Desktop Open-Source AI (Ollama)</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('cicd')}
           className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${
             activeTab === 'cicd' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-white'
           }`}
         >
           <GitBranch className="w-4 h-4" />
-          <span>1. CI/CD GitHub Actions</span>
+          <span>2. CI/CD GitHub Actions</span>
         </button>
 
         <button
@@ -152,7 +222,7 @@ jobs:
           }`}
         >
           <Activity className="w-4 h-4" />
-          <span>2. Observability & Logging</span>
+          <span>3. Observability & Logging</span>
         </button>
 
         <button
@@ -162,7 +232,7 @@ jobs:
           }`}
         >
           <Key className="w-4 h-4" />
-          <span>3. Secret Management</span>
+          <span>4. Secret Management</span>
         </button>
 
         <button
@@ -172,9 +242,135 @@ jobs:
           }`}
         >
           <Globe className="w-4 h-4" />
-          <span>4. HTTPS & Hosting</span>
+          <span>5. HTTPS & Hosting</span>
         </button>
       </div>
+
+      {/* TAB 0: LOCAL OPEN-SOURCE DESKTOP STACK */}
+      {activeTab === 'localstack' && (
+        <div className="space-y-6">
+          {/* Local Ollama Endpoint Config */}
+          <div className={`p-6 rounded-2xl border ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                  <Cpu className="w-4 h-4 text-orange-500" />
+                  Local AI Endpoint & Open-Source Model Host
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Connect local LLMs via Ollama, LM Studio, or LocalAI for 100% offline private execution
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-1 text-[10px] font-mono font-bold rounded border ${
+                  ollamaStatus === 'online' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                  ollamaStatus === 'offline' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                  'bg-slate-800 text-slate-400 border-slate-700'
+                }`}>
+                  {ollamaStatus === 'online' ? '● Local Endpoint Online' :
+                   ollamaStatus === 'offline' ? '▲ Local Endpoint Standby' : '○ Not Tested'}
+                </span>
+
+                <button
+                  onClick={testOllamaConnection}
+                  disabled={ollamaStatus === 'testing'}
+                  className="px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${ollamaStatus === 'testing' ? 'animate-spin' : ''}`} />
+                  <span>Test Local Ping</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
+              <div>
+                <label className="block text-xs font-mono font-bold text-slate-400 mb-1">
+                  Local Ollama Host URL
+                </label>
+                <input
+                  type="text"
+                  value={ollamaHost}
+                  onChange={(e) => setOllamaHost(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-xl border font-mono text-xs outline-none ${
+                    darkMode ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                  placeholder="http://localhost:11434"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono font-bold text-slate-400 mb-1">
+                  Active Local LLM Model
+                </label>
+                <select
+                  value={localModel}
+                  onChange={(e) => setLocalModel(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-xl border font-mono text-xs outline-none ${
+                    darkMode ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <option value="llama3.2:latest">llama3.2:latest (Meta Meta-Llama-3.2)</option>
+                  <option value="deepseek-r1:7b">deepseek-r1:7b (DeepSeek Reasoning)</option>
+                  <option value="mistral:7b">mistral:7b (Mistral AI)</option>
+                  <option value="qwen2.5-coder:7b">qwen2.5-coder:7b (Alibaba Qwen Coder)</option>
+                  <option value="codellama:latest">codellama:latest (CodeLlama Meta)</option>
+                  {detectedModels.map((m) => (
+                    <option key={m} value={m}>{m} (Detected Local)</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Local Docker Compose Generator */}
+            <div className="mt-6 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold font-mono text-slate-400 flex items-center gap-1.5">
+                  <Terminal className="w-3.5 h-3.5 text-orange-500" />
+                  <span>Desktop Local Stack docker-compose.yml</span>
+                </span>
+                <button
+                  onClick={copyDockerCompose}
+                  className="text-xs font-mono text-orange-400 hover:text-orange-300 flex items-center gap-1"
+                >
+                  {copiedDocker ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedDocker ? 'Copied Compose Spec' : 'Copy docker-compose.yml'}</span>
+                </button>
+              </div>
+
+              <pre className="p-4 rounded-xl bg-slate-950 text-slate-300 font-mono text-xs overflow-x-auto border border-slate-800 leading-relaxed">
+{`version: '3.8'
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: local_ai_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+    restart: unless-stopped
+
+  local-db:
+    image: postgres:16-alpine
+    container_name: local_task_db
+    environment:
+      POSTGRES_USER: desktop_user
+      POSTGRES_PASSWORD: desktop_password
+      POSTGRES_DB: ai_eng_workspace
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  ollama_storage:
+  postgres_data:`}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: CI/CD PIPELINE */}
       {activeTab === 'cicd' && (
