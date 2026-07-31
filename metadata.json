@@ -1,0 +1,6 @@
+{
+  "name": "AI Engineering Operating System",
+  "description": "An enterprise-grade desktop AI Engineering Workspace featuring executive dashboards, sprint planner, AI agent library, 200+ reusable prompt library, folder explorer, and knowledge base.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
