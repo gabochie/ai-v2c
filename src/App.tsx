@@ -232,6 +232,7 @@ export default function App() {
           {currentView === 'agents' && (
             <AgentLibraryView
               agents={AGENT_LIBRARY}
+              tasks={tasks}
               onAddTaskFromAgent={(title, desc, agentId) =>
                 handleAddTaskFromAgentOrADR(title, desc, agentId)
               }
