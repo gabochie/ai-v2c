@@ -23,6 +23,7 @@ export interface Task {
   dependencies: string[]; // Task IDs that must be completed first
   notes: string;
   checklist: ChecklistItem[];
+  dueDate?: string;
   createdAt: string;
   updatedAt: string;
 }

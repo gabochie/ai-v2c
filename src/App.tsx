@@ -11,6 +11,8 @@ import { SlashCommandView } from './components/SlashCommandView';
 import { SettingsView } from './components/SettingsView';
 import { TaskModal } from './components/TaskModal';
 import { ExportImportModal } from './components/ExportImportModal';
+import { NotificationToast } from './components/NotificationToast';
+import { NotificationService } from './utils/notificationService';
 
 import { Task, Sprint, ViewMode, TaskStatus } from './types';
 import { INITIAL_TASKS, INITIAL_SPRINTS } from './data/initialTasks';
@@ -77,6 +79,19 @@ export default function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // Local Browser Notification Evaluation Trigger (Critical Priority or Due within 24 Hours)
+  useEffect(() => {
+    // Initial evaluation
+    NotificationService.evaluateAllTasks(tasks);
+
+    // Periodic check every 60 seconds
+    const interval = setInterval(() => {
+      NotificationService.evaluateAllTasks(tasks);
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [tasks]);
 
   // Handlers
   const handleSaveTask = (savedTask: Task) => {
@@ -322,6 +337,15 @@ export default function App() {
           darkMode={darkMode}
         />
       )}
+
+      {/* Local Browser & Toast Notification Alerts */}
+      <NotificationToast
+        onSelectTask={(task) => {
+          setEditingTask(task);
+          setIsTaskModalOpen(true);
+        }}
+        darkMode={darkMode}
+      />
     </div>
   );
 }

@@ -268,8 +268,12 @@ export const SprintPlannerView: React.FC<SprintPlannerViewProps> = ({
                           </span>
 
                           <div className="flex items-center gap-1">
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${getPriorityBadge(task.priority)}`}>
-                              {task.priority}
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
+                              task.priority === 'Critical'
+                                ? 'bg-red-500/20 text-red-400 border border-red-500/30 font-extrabold animate-pulse'
+                                : getPriorityBadge(task.priority)
+                            }`}>
+                              {task.priority === 'Critical' ? '🚨 Critical' : task.priority}
                             </span>
                           </div>
                         </div>
@@ -305,6 +309,21 @@ export const SprintPlannerView: React.FC<SprintPlannerViewProps> = ({
                                 #{tag}
                               </span>
                             ))}
+                          </div>
+                        )}
+
+                        {/* Due Date Badge */}
+                        {task.dueDate && (
+                          <div className={`mt-2 flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border w-fit ${
+                            (new Date(task.dueDate).getTime() - Date.now()) <= 24 * 3600 * 1000
+                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 font-bold'
+                              : 'bg-slate-700/20 text-slate-400 border-slate-700/30'
+                          }`}>
+                            <Calendar className="w-3 h-3 text-orange-400" />
+                            <span>Due: {task.dueDate}</span>
+                            {(new Date(task.dueDate).getTime() - Date.now()) <= 24 * 3600 * 1000 && (
+                              <span className="text-[9px] text-amber-400 font-extrabold ml-0.5 font-mono">(&lt;24h)</span>
+                            )}
                           </div>
                         )}
 

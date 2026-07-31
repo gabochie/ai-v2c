@@ -143,6 +143,7 @@ export const INITIAL_TASKS: Task[] = [
       { id: 'c2', text: 'Create task detail modal editor with notes and checklist', done: false },
       { id: 'c3', text: 'Display task prerequisite warning flags', done: false }
     ],
+    dueDate: new Date(Date.now() + 18 * 3600 * 1000).toISOString().split('T')[0],
     createdAt: '2026-07-30T09:00:00Z',
     updatedAt: '2026-07-30T09:00:00Z'
   },
@@ -160,6 +161,7 @@ export const INITIAL_TASKS: Task[] = [
     tags: ['AI Agents', 'Gemini API', 'Chat Console'],
     dependencies: ['task-101', 'task-103'],
     notes: 'Users should be able to select any agent persona, view its capabilities, and chat in real-time.',
+    dueDate: new Date(Date.now() + 12 * 3600 * 1000).toISOString().split('T')[0],
     checklist: [
       { id: 'c1', text: 'Render Agent card gallery with color badges and capabilities', done: false },
       { id: 'c2', text: 'Build Agent Chat Interface with streaming or async response', done: false },
