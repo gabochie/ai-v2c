@@ -4,25 +4,26 @@ import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 
-import { logger } from "./src/utils/logger";
-import { SecretManagerService } from "./src/utils/secretManager";
-import { getDb, initDatabase, logAudit } from "./src/server/db";
-import { AIRouter } from "./src/server/ai/router";
-import { FilesystemManager } from "./src/server/fs";
-import { ToolRegistry } from "./src/server/tools";
-import { ProjectFactory } from "./src/server/wp/factory";
-import { AgentOrchestrator } from "./src/server/orchestrator/run";
-import { AutonomyPipelineEngine } from "./src/server/pipeline";
-import { LocalRAGSearchEngine } from "./src/server/rag";
-import { AuthService } from "./src/server/security/auth";
-import { EncryptedBackupService } from "./src/server/security/backup";
-import { runEnterpriseTestSuite } from "./src/server/tests/suite";
+import { logger } from "./utils/logger";
+import { SecretManagerService } from "./utils/secretManager";
+import { getDb, initDatabase, logAudit } from "./db";
+import { AIRouter } from "./ai/router";
+import { FilesystemManager } from "./fs";
+import { ToolRegistry } from "./tools";
+import { ProjectFactory } from "./wp/factory";
+import { AgentOrchestrator } from "./orchestrator/run";
+import { AutonomyPipelineEngine } from "./pipeline";
+import { LocalRAGSearchEngine } from "./rag";
+import { AuthService } from "./security/auth";
+import { EncryptedBackupService } from "./security/backup";
+import { runEnterpriseTestSuite } from "./tests/suite";
 
 dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3001;
+  const HOST = process.env.HOST || "0.0.0.0";
 
   // Initialize SQLite Database with WAL mode & Seed Data
   try {
@@ -93,8 +94,11 @@ async function startServer() {
 
   // Authentication login endpoint
   app.post("/api/auth/login", async (req: Request, res: Response) => {
-    const { username, password } = req.body;
-    const session = await AuthService.authenticateUser(username || "admin", password || "admin123");
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ error: "Username and password are required" });
+    }
+    const session = await AuthService.authenticateUser(username, password);
     if (session) {
       return res.json({ status: "authenticated", user: session });
     }
@@ -368,15 +372,21 @@ async function startServer() {
 
   // --- ENCRYPTED BACKUP API ---
   app.post("/api/backup/export", async (req: Request, res: Response) => {
-    const secretKey = req.body.secretKey || "ForgeDesktopPasscode2026";
+    const secretKey = req.body.secretKey || process.env.BACKUP_KEY;
+    if (!secretKey) {
+      return res.status(400).json({ error: "BACKUP_KEY is required to encrypt backups" });
+    }
     const backup = await EncryptedBackupService.exportBackup(secretKey);
     res.json(backup);
   });
 
   app.post("/api/backup/import", async (req: Request, res: Response) => {
     const { encryptedData, iv, tag, secretKey } = req.body;
+    if (!secretKey && !process.env.BACKUP_KEY) {
+      return res.status(400).json({ error: "BACKUP_KEY is required to decrypt backups" });
+    }
     try {
-      const success = await EncryptedBackupService.importBackup(encryptedData, iv, tag, secretKey || "ForgeDesktopPasscode2026");
+      const success = await EncryptedBackupService.importBackup(encryptedData, iv, tag, secretKey || process.env.BACKUP_KEY!);
       res.json({ success });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -413,8 +423,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    logger.info(`Forge AI Engine Server running on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    logger.info(`Forge AI Engine Server running on http://${HOST}:${PORT}`);
   });
 }
 

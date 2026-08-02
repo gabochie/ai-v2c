@@ -1,10 +1,12 @@
 import { createClient, Client } from "@libsql/client";
 import fs from "fs";
 import path from "path";
-import { INITIAL_TASKS, INITIAL_SPRINTS } from "../../data/initialTasks";
-import { AGENT_LIBRARY } from "../../data/agentLibrary";
-import { PROMPT_LIBRARY } from "../../data/promptLibrary";
-import { KNOWLEDGE_ARTICLES } from "../../data/knowledgeBase";
+import crypto from "crypto";
+import { hashPassword } from "../security/password";
+import { INITIAL_TASKS, INITIAL_SPRINTS } from "../../shared/data/initialTasks";
+import { AGENT_LIBRARY } from "../../shared/data/agentLibrary";
+import { PROMPT_LIBRARY } from "../../shared/data/promptLibrary";
+import { KNOWLEDGE_BASE } from "../../shared/data/knowledgeBase";
 
 let dbClient: Client | null = null;
 
@@ -152,11 +154,25 @@ export async function initDatabase(): Promise<void> {
   // Seed Default Admin User if empty
   const userCheck = await db.execute("SELECT COUNT(*) as count FROM users;");
   if (Number(userCheck.rows[0].count) === 0) {
-    // Default password hash for 'admin123'
+    const adminPassword = process.env.ADMIN_PASSWORD || crypto.randomBytes(12).toString("hex");
     await db.execute({
       sql: "INSERT INTO users (id, username, passwordHash, role, createdAt) VALUES (?, ?, ?, ?, ?);",
-      args: ["usr_admin_1", "admin", "admin123_hash_scrypt_v1", "admin", new Date().toISOString()],
+      args: ["usr_admin_1", "admin", hashPassword(adminPassword), "admin", new Date().toISOString()],
     });
+    if (!process.env.ADMIN_PASSWORD) {
+      console.warn(`[SECURITY] No ADMIN_PASSWORD env set. One-time admin password: ${adminPassword}`);
+    }
+  }
+
+  // Migrate any legacy plaintext-marked admin password to a real scrypt hash
+  const legacyAdmin = await db.execute("SELECT id FROM users WHERE passwordHash = 'admin123_hash_scrypt_v1';");
+  if (legacyAdmin.rows.length > 0) {
+    const adminPassword = process.env.ADMIN_PASSWORD || crypto.randomBytes(12).toString("hex");
+    await db.execute({
+      sql: "UPDATE users SET passwordHash = ? WHERE id = ?;",
+      args: [hashPassword(adminPassword), String(legacyAdmin.rows[0].id)],
+    });
+    console.warn(`[SECURITY] Legacy admin password migrated. Use ADMIN_PASSWORD env or generated password: ${adminPassword}`);
   }
 
   // Seed tasks if empty
@@ -261,7 +277,7 @@ export async function initDatabase(): Promise<void> {
   // Seed knowledge articles if empty
   const articleCheck = await db.execute("SELECT COUNT(*) as count FROM knowledge_articles;");
   if (Number(articleCheck.rows[0].count) === 0) {
-    for (const article of KNOWLEDGE_ARTICLES) {
+    for (const article of KNOWLEDGE_BASE) {
       await db.execute({
         sql: `INSERT INTO knowledge_articles (id, title, category, summary, content, tags, author, lastUpdated)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,

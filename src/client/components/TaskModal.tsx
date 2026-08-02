@@ -20,7 +20,7 @@ import {
   Layers,
   ChevronDown
 } from 'lucide-react';
-import { Task, TaskStatus, TaskPriority, TaskDifficulty, Sprint, Agent, ChecklistItem } from '../types';
+import { Task, TaskStatus, TaskPriority, TaskDifficulty, Sprint, Agent, ChecklistItem } from '../../shared/types';
 import { NotificationService } from '../utils/notificationService';
 
 interface TaskModalProps {

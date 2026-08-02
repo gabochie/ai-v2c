@@ -14,13 +14,13 @@ import { ExportImportModal } from './components/ExportImportModal';
 import { NotificationToast } from './components/NotificationToast';
 import { NotificationService } from './utils/notificationService';
 
-import { Task, Sprint, ViewMode, TaskStatus } from './types';
-import { INITIAL_TASKS, INITIAL_SPRINTS } from './data/initialTasks';
-import { AGENT_LIBRARY } from './data/agentLibrary';
-import { getFullPromptLibrary } from './data/promptLibrary';
-import { KNOWLEDGE_BASE } from './data/knowledgeBase';
-import { SLASH_COMMANDS } from './data/slashCommands';
-import { INITIAL_WORKSPACE_FILES } from './data/folderExplorer';
+import { Task, Sprint, ViewMode, TaskStatus } from '../shared/types';
+import { INITIAL_TASKS, INITIAL_SPRINTS } from '../shared/data/initialTasks';
+import { AGENT_LIBRARY } from '../shared/data/agentLibrary';
+import { getFullPromptLibrary } from '../shared/data/promptLibrary';
+import { KNOWLEDGE_BASE } from '../shared/data/knowledgeBase';
+import { SLASH_COMMANDS } from '../shared/data/slashCommands';
+import { INITIAL_WORKSPACE_FILES } from '../shared/data/folderExplorer';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode>('dashboard');

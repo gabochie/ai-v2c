@@ -34,7 +34,7 @@ import {
   Legend,
   CartesianGrid
 } from 'recharts';
-import { Agent, Task } from '../types';
+import { Agent, Task } from '../../shared/types';
 
 interface AgentLibraryViewProps {
   agents: Agent[];

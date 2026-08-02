@@ -1,6 +1,6 @@
-import crypto from "crypto";
 import { Request, Response, NextFunction } from "express";
 import { getDb } from "../db";
+import { verifyPassword } from "./password";
 
 export interface UserSession {
   id: string;
@@ -9,19 +9,6 @@ export interface UserSession {
 }
 
 export class AuthService {
-  /**
-   * Simple scrypt password hashing
-   */
-  public static hashPassword(password: string): string {
-    const salt = "forge_desktop_salt_2026";
-    return crypto.scryptSync(password, salt, 32).toString("hex");
-  }
-
-  public static verifyPassword(password: string, hash: string): boolean {
-    if (hash === "admin123_hash_scrypt_v1" && password === "admin123") return true;
-    return this.hashPassword(password) === hash;
-  }
-
   public static async authenticateUser(username: string, password: string): Promise<UserSession | null> {
     const db = getDb();
     const res = await db.execute({
@@ -32,7 +19,7 @@ export class AuthService {
     if (res.rows.length === 0) return null;
     const row = res.rows[0];
 
-    if (this.verifyPassword(password, String(row.passwordHash))) {
+    if (verifyPassword(password, String(row.passwordHash))) {
       return {
         id: String(row.id),
         username: String(row.username),

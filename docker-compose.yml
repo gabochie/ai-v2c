@@ -1,0 +1,32 @@
+services:
+  forge-ai-os:
+    build: .
+    image: forge-ai-os:local
+    container_name: forge-ai-os
+    restart: unless-stopped
+    ports:
+      # Bind only to localhost on the host machine
+      - "127.0.0.1:3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      LOG_LEVEL: info
+      # Reach host Ollama from inside the container (works on Docker Desktop & Linux)
+      OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_MODEL_CODER: ${OLLAMA_MODEL_CODER:-qwen2.5-coder:7b}
+      OLLAMA_MODEL_GENERAL: ${OLLAMA_MODEL_GENERAL:-hermes3:latest}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      BACKUP_KEY: ${BACKUP_KEY:-}
+    volumes:
+      # Persist SQLite DB and generated WordPress projects
+      - ./data:/app/data
+      - ./workspace:/app/workspace
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

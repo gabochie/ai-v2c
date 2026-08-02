@@ -15,7 +15,7 @@ import {
   Cpu,
   Layers
 } from 'lucide-react';
-import { ViewMode } from '../types';
+import { ViewMode } from '../../shared/types';
 
 interface SidebarProps {
   currentView: ViewMode;

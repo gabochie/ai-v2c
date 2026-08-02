@@ -15,7 +15,7 @@ import {
   Layers,
   Sparkles
 } from 'lucide-react';
-import { Task, TaskStatus, TaskDifficulty, TaskPriority, Sprint, Agent } from '../types';
+import { Task, TaskStatus, TaskDifficulty, TaskPriority, Sprint, Agent } from '../../shared/types';
 
 interface SprintPlannerViewProps {
   tasks: Task[];

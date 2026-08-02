@@ -1,0 +1,16 @@
+node_modules
+dist
+build
+coverage
+data
+workspace
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+Dockerfile
+docker-compose.yml
+agentic-org
+project-zero

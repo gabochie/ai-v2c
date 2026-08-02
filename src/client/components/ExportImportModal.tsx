@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Download, Upload, FileText, CheckCircle2, AlertCircle, X, RefreshCw } from 'lucide-react';
-import { Task, Sprint, Agent, PromptTemplate, KnowledgeArticle } from '../types';
+import { Task, Sprint, Agent, PromptTemplate, KnowledgeArticle } from '../../shared/types';
 
 interface ExportImportModalProps {
   tasks: Task[];

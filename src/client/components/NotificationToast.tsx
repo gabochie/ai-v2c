@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, AlertTriangle, Clock, X, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { NotificationService, InAppNotificationEvent } from '../utils/notificationService';
-import { Task } from '../types';
+import { Task } from '../../shared/types';
 
 interface NotificationToastProps {
   onSelectTask?: (task: Task) => void;

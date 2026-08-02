@@ -26,7 +26,7 @@ import {
   Cell,
   Legend
 } from 'recharts';
-import { Task, Sprint, Agent, ViewMode } from '../types';
+import { Task, Sprint, Agent, ViewMode } from '../../shared/types';
 
 interface DashboardViewProps {
   tasks: Task[];

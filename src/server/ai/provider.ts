@@ -22,7 +22,7 @@ export class AIProviderService {
   /**
    * Execute chat via local Ollama endpoint (OpenAI compatible / native)
    */
-  public static async callOllama(req: AIProviderRequest, modelName: string = "qwen2.5-coder:7b"): Promise<string> {
+  public static async callOllama(req: AIProviderRequest, modelName: string = process.env.OLLAMA_MODEL_CODER || "qwen2.5-coder:7b"): Promise<string> {
     const url = `${this.ollamaHost}/v1/chat/completions`;
     
     const messages: Array<{ role: string; content: string }> = [];

@@ -12,7 +12,7 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { KnowledgeArticle } from '../types';
+import { KnowledgeArticle } from '../../shared/types';
 
 interface KnowledgeBaseViewProps {
   articles: KnowledgeArticle[];

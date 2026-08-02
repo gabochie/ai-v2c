@@ -9,7 +9,7 @@ import {
   RefreshCw,
   Code2
 } from 'lucide-react';
-import { SlashCommand } from '../types';
+import { SlashCommand } from '../../shared/types';
 
 interface SlashCommandViewProps {
   commands: SlashCommand[];

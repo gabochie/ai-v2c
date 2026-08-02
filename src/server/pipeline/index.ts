@@ -79,8 +79,10 @@ export class AutonomyPipelineEngine {
         return;
       }
 
-      stage.status = 'running';
-      stage.timestamp = new Date().toISOString();
+      if (stage.status !== 'completed') {
+        stage.status = 'running';
+        stage.timestamp = new Date().toISOString();
+      }
 
       try {
         if (stage.id === 'stage_1') {

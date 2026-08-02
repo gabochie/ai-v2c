@@ -13,7 +13,7 @@ import {
   FileCode,
   Layers
 } from 'lucide-react';
-import { PromptTemplate, TaskDifficulty } from '../types';
+import { PromptTemplate, TaskDifficulty } from '../../shared/types';
 
 interface PromptLibraryViewProps {
   prompts: PromptTemplate[];

@@ -4,12 +4,12 @@ import path from "path";
 import { getDb, initDatabase, logAudit } from "../db";
 
 export class EncryptedBackupService {
-  private static ALGORITHM = "aes-256-gcm";
+  private static ALGORITHM = "aes-256-gcm" as const;
 
   /**
    * Export database and workspace as AES-256-GCM encrypted payload
    */
-  public static async exportBackup(secretKey: string = "ForgeDesktopPasscode2026"): Promise<{ encryptedData: string; iv: string; tag: string }> {
+  public static async exportBackup(secretKey: string): Promise<{ encryptedData: string; iv: string; tag: string }> {
     const db = getDb();
 
     // Gather all tables
@@ -45,7 +45,7 @@ export class EncryptedBackupService {
   /**
    * Import database from AES-256-GCM encrypted payload
    */
-  public static async importBackup(encryptedData: string, ivHex: string, tagHex: string, secretKey: string = "ForgeDesktopPasscode2026"): Promise<boolean> {
+  public static async importBackup(encryptedData: string, ivHex: string, tagHex: string, secretKey: string): Promise<boolean> {
     const key = crypto.scryptSync(secretKey, "forge_salt", 32);
     const iv = Buffer.from(ivHex, "hex");
     const tag = Buffer.from(tagHex, "hex");

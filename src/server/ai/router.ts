@@ -1,7 +1,10 @@
 import { AIProviderRequest, AIProviderResponse, AIProviderService } from "./provider";
-import { SecretManagerService } from "../../utils/secretManager";
+import { SecretManagerService } from "../utils/secretManager";
 
 export class AIRouter {
+  private static readonly MODEL_CODER = process.env.OLLAMA_MODEL_CODER || "qwen2.5-coder:7b";
+  private static readonly MODEL_GENERAL = process.env.OLLAMA_MODEL_GENERAL || "llama3.2:latest";
+
   /**
    * Intelligently routes chat requests based on taskType and fallback chain
    */
@@ -14,7 +17,7 @@ export class AIRouter {
     // If local model preferred, try Ollama first
     if (prefersLocal) {
       try {
-        const localModel = taskType === "php" || taskType === "wordpress_plugin" ? "qwen2.5-coder:7b" : "llama3.2:latest";
+        const localModel = taskType === "php" || taskType === "wordpress_plugin" ? this.MODEL_CODER : this.MODEL_GENERAL;
         const reply = await AIProviderService.callOllama(req, localModel);
         return {
           reply,
@@ -46,16 +49,16 @@ export class AIRouter {
 
     // 3. Fallback attempt to local Ollama if Gemini failed
     try {
-      const reply = await AIProviderService.callOllama(req, "llama3.2:latest");
+      const reply = await AIProviderService.callOllama(req, this.MODEL_GENERAL);
       return {
         reply,
         providerUsed: "ollama",
-        modelUsed: "llama3.2:latest",
+        modelUsed: this.MODEL_GENERAL,
         tokensEstimated: Math.ceil((req.prompt.length + reply.length) / 4),
       };
     } catch (finalErr: any) {
       return {
-        reply: `[AI System Standby] Both local LLM endpoint and cloud AI key are offline or unconfigured. Prompt received: "${req.prompt.substring(0, 80)}..."`,
+        reply: `[AI System Standby] Both local LLM endpoint and cloud AI key are offline or unconfigured. Prompt received: "${(req.prompt || "").substring(0, 80)}..."`,
         providerUsed: "ollama",
         modelUsed: "none",
         tokensEstimated: 0,

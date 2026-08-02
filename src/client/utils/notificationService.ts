@@ -1,5 +1,5 @@
-import { Task } from '../types';
-import { AGENT_LIBRARY } from '../data/agentLibrary';
+import { Task } from '../../shared/types';
+import { AGENT_LIBRARY } from '../../shared/data/agentLibrary';
 
 export interface InAppNotificationEvent {
   id: string;

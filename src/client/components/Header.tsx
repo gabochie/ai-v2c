@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Calendar, Clock, Sparkles, Filter, X } from 'lucide-react';
-import { ViewMode, Sprint } from '../types';
+import { ViewMode, Sprint } from '../../shared/types';
 
 interface HeaderProps {
   currentView: ViewMode;

@@ -11,7 +11,7 @@ import {
   Check,
   Code
 } from 'lucide-react';
-import { WorkspaceFile } from '../types';
+import { WorkspaceFile } from '../../shared/types';
 
 interface FolderExplorerViewProps {
   files: WorkspaceFile[];
