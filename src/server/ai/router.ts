@@ -1,5 +1,6 @@
 import { AIProviderRequest, AIProviderResponse, AIProviderService } from "./provider";
 import { SecretManagerService } from "../utils/secretManager";
+import { OpenClawClient } from "../openclaw/client";
 
 export class AIRouter {
   private static readonly MODEL_CODER = process.env.OLLAMA_MODEL_CODER || "qwen2.5-coder:7b";
@@ -11,7 +12,18 @@ export class AIRouter {
   public static async routeAndExecute(req: AIProviderRequest): Promise<AIProviderResponse> {
     const taskType = req.taskType || "general";
 
-    // 1. Determine Preferred Provider Strategy
+    // 1. OpenClaw sandboxed agent hub (highest priority when configured)
+    if (OpenClawClient.isConfigured()) {
+      try {
+        const openclaw = await AIProviderService.callOpenClaw(req);
+        openclaw.providerUsed = "openclaw";
+        return openclaw;
+      } catch (openclawErr: any) {
+        console.warn(`[AI Router] OpenClaw unavailable, falling back: ${openclawErr.message}`);
+      }
+    }
+
+    // 2. Determine Preferred Provider Strategy
     const prefersLocal = ["wordpress_plugin", "php", "javascript"].includes(taskType);
 
     // If local model preferred, try Ollama first

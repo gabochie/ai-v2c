@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { FilesystemManager } from "../fs";
+import { OpenClawClient } from "../openclaw/client";
 
 const execFileAsync = promisify(execFile);
 
@@ -31,6 +32,18 @@ export class ToolRegistry {
         exitCode: err.code || 1,
       };
     }
+  }
+
+  /**
+   * Execute a command inside the OpenClaw sandboxed agent (network-isolated,
+   * dropped capabilities). Returns raw stdout/stderr. Only available when the
+   * OpenClaw gateway is configured.
+   */
+  public static async runCommandSandboxed(commandLine: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    if (!OpenClawClient.isConfigured()) {
+      return { stdout: "", stderr: "OpenClaw gateway not configured (OPENCLAW_GATEWAY_URL/TOKEN).", exitCode: 1 };
+    }
+    return OpenClawClient.runSandboxedCommand(commandLine);
   }
 
   /**

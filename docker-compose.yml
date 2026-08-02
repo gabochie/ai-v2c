@@ -15,6 +15,9 @@ services:
       OLLAMA_HOST: http://host.docker.internal:11434
       OLLAMA_MODEL_CODER: ${OLLAMA_MODEL_CODER:-qwen2.5-coder:7b}
       OLLAMA_MODEL_GENERAL: ${OLLAMA_MODEL_GENERAL:-hermes3:latest}
+      # Reach the host OpenClaw gateway from inside the container
+      OPENCLAW_GATEWAY_URL: ${OPENCLAW_GATEWAY_URL:-http://host.docker.internal:18789}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       BACKUP_KEY: ${BACKUP_KEY:-}

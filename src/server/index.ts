@@ -291,8 +291,11 @@ async function startServer() {
   app.post("/api/tools/exec", async (req: Request, res: Response) => {
     const { command } = req.body;
     try {
-      const result = await ToolRegistry.runCommand(command);
-      await logAudit("user", "EXEC_TOOL", "command", command, { exitCode: result.exitCode });
+      const sandbox = req.body.sandbox === true;
+      const result = sandbox
+        ? await ToolRegistry.runCommandSandboxed(command)
+        : await ToolRegistry.runCommand(command);
+      await logAudit("user", "EXEC_TOOL", "command", command, { exitCode: result.exitCode, sandbox });
       res.json(result);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
