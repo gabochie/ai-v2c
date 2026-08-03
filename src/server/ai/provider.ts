@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { OpenClawClient, OpenClawMessage } from "../openclaw/client";
+import { HermesClient, HermesMessage } from "../hermes/client";
 
 export interface AIProviderRequest {
   systemPrompt?: string;
@@ -8,11 +9,13 @@ export interface AIProviderRequest {
   history?: Array<{ role: string; content: string }>;
   model?: string;
   taskType?: 'wordpress_plugin' | 'php' | 'javascript' | 'architecture' | 'security' | 'general';
+  /** Force a specific provider (e.g. 'hermes' or 'openclaw') instead of the priority chain. */
+  provider?: 'hermes' | 'openclaw';
 }
 
 export interface AIProviderResponse {
   reply: string;
-  providerUsed: 'ollama' | 'lmstudio' | 'gemini' | 'openrouter' | 'openclaw';
+  providerUsed: 'ollama' | 'lmstudio' | 'gemini' | 'openrouter' | 'openclaw' | 'hermes';
   modelUsed: string;
   tokensEstimated?: number;
 }
@@ -116,6 +119,29 @@ export class AIProviderService {
     return {
       reply: result.text,
       providerUsed: "openclaw",
+      modelUsed: result.modelUsed,
+      tokensEstimated: Math.ceil((req.prompt.length + result.text.length) / 4),
+    };
+  }
+
+  /**
+   * Execute chat via the Hermes agent gateway (OpenAI-compatible, fast local
+   * agentic path backed by Ollama).
+   */
+  public static async callHermes(req: AIProviderRequest): Promise<AIProviderResponse> {
+    const messages: HermesMessage[] = [];
+    if (req.systemPrompt) {
+      messages.push({ role: "system", content: req.systemPrompt });
+    }
+    if (req.history) {
+      req.history.forEach((m) => messages.push({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }));
+    }
+    messages.push({ role: "user", content: req.prompt });
+
+    const result = await HermesClient.chat(messages, req.temperature ?? 0.7);
+    return {
+      reply: result.text,
+      providerUsed: "hermes",
       modelUsed: result.modelUsed,
       tokensEstimated: Math.ceil((req.prompt.length + result.text.length) / 4),
     };
