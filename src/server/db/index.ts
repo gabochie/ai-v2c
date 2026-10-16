@@ -151,6 +151,16 @@ export async function initDatabase(): Promise<void> {
     );
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      tokenHash TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      expiresAt TEXT NOT NULL
+    );
+  `);
+
   // Seed Default Admin User if empty
   const userCheck = await db.execute("SELECT COUNT(*) as count FROM users;");
   if (Number(userCheck.rows[0].count) === 0) {
@@ -161,6 +171,15 @@ export async function initDatabase(): Promise<void> {
     });
     if (!process.env.ADMIN_PASSWORD) {
       console.warn(`[SECURITY] No ADMIN_PASSWORD env set. One-time admin password: ${adminPassword}`);
+    }
+  } else if (process.env.ADMIN_PASSWORD) {
+    // Rotate the admin password to match the env var on every boot (deterministic ops).
+    const adminUser = await db.execute("SELECT id FROM users WHERE username = 'admin';");
+    if (adminUser.rows.length > 0) {
+      await db.execute({
+        sql: "UPDATE users SET passwordHash = ? WHERE id = ?;",
+        args: [hashPassword(process.env.ADMIN_PASSWORD), String(adminUser.rows[0].id)],
+      });
     }
   }
 

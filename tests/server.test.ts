@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { SecretManagerService } from '../src/server/utils/secretManager';
 import { hashPassword, verifyPassword } from '../src/server/security/password';
+import { FilesystemManager } from '../src/server/fs';
 
 test('SecretManagerService - maskSecret redacts credentials safely', () => {
   const secret = 'AIzaSyD-1234567890abcdefghijklm';
@@ -30,4 +32,28 @@ test('password - hash/verify roundtrip with timing-safe comparison', () => {
 
 test('password - legacy plaintext marker no longer authenticates', () => {
   assert.strictEqual(verifyPassword('admin123', 'admin123_hash_scrypt_v1'), false);
+});
+
+test('filesystem - relative .. traversal is rejected', () => {
+  assert.throws(() => FilesystemManager.resolveSafePath('../../../etc/passwd'));
+});
+
+test('filesystem - absolute path outside workspace is rejected', () => {
+  assert.throws(() => FilesystemManager.resolveSafePath(path.join(path.dirname(FilesystemManager.getWorkspaceRoot()), 'evil', 'x.php')));
+});
+
+test('filesystem - sibling-prefix workspace escape is rejected', () => {
+  const root = FilesystemManager.getWorkspaceRoot();
+  const sibling = `${root}-evil`;
+  assert.throws(() => FilesystemManager.resolveSafePath(path.join(sibling, 'x.php')));
+});
+
+test('filesystem - normalized .. that escapes is rejected', () => {
+  assert.throws(() => FilesystemManager.resolveSafePath('ok/nested/../../../../escape.txt'));
+});
+
+test('filesystem - legitimate nested path inside workspace is allowed', () => {
+  const root = FilesystemManager.getWorkspaceRoot();
+  const resolved = FilesystemManager.resolveSafePath('ok/nested/file.txt');
+  assert.strictEqual(resolved.startsWith(root + path.sep), true);
 });

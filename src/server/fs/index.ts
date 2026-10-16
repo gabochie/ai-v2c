@@ -23,15 +23,43 @@ export class FilesystemManager {
   }
 
   /**
-   * Validate that a target path is strictly inside the allowed workspace root
+   * Validate that a target path is strictly inside the allowed workspace root.
+   *
+   * Defense layers:
+   * 1. Segment-aware containment via `path.relative` — rejects `..` escapes AND
+   *    sibling-prefix bypasses (`workspace-evil/...`), which a bare `startsWith`
+   *    check allowed.
+   * 2. Symlink escape defense — the nearest existing ancestor is `realpath`'d and
+   *    must also stay inside the real workspace root.
+   * 3. Case/drive normalization — the realpath of the workspace root is the
+   *    comparison base, so Windows casing and `\\?\` prefixes cannot be abused.
    */
   public static resolveSafePath(targetPath: string): string {
     const root = this.getWorkspaceRoot();
+    const rootReal = fs.realpathSync(root);
     const resolved = path.resolve(root, targetPath);
 
-    // Strict path traversal defense
-    if (!resolved.startsWith(root)) {
+    const relative = path.relative(rootReal, resolved);
+    const escaped = relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative);
+    if (escaped) {
       throw new Error(`Security Violation: Path '${targetPath}' attempts to escape workspace boundary.`);
+    }
+
+    // Symlink escape defense: walk up to the nearest existing ancestor and verify
+    // its real location is still inside the workspace root.
+    let probe = resolved;
+    while (!fs.existsSync(probe)) {
+      const parent = path.dirname(probe);
+      if (parent === probe) break;
+      probe = parent;
+    }
+    if (fs.existsSync(probe)) {
+      const probeReal = fs.realpathSync(probe);
+      const relReal = path.relative(rootReal, probeReal);
+      const realEscaped = relReal === ".." || relReal.startsWith(`..${path.sep}`) || path.isAbsolute(relReal);
+      if (realEscaped) {
+        throw new Error(`Security Violation: Path '${targetPath}' resolves outside workspace boundary via symlink.`);
+      }
     }
 
     return resolved;

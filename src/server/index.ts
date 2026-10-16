@@ -12,13 +12,32 @@ import { FilesystemManager } from "./fs";
 import { ToolRegistry } from "./tools";
 import { ProjectFactory } from "./wp/factory";
 import { AgentOrchestrator } from "./orchestrator/run";
+import { AgentLoop } from "./agent/loop";
 import { AutonomyPipelineEngine } from "./pipeline";
 import { LocalRAGSearchEngine } from "./rag";
-import { AuthService } from "./security/auth";
+import { AuthService, requireRole } from "./security/auth";
 import { EncryptedBackupService } from "./security/backup";
 import { runEnterpriseTestSuite } from "./tests/suite";
+import { validateBody } from "./validation/validate";
+import {
+  loginSchema,
+  taskCreateSchema,
+  taskUpdateSchema,
+  fsWriteSchema,
+  fsReadSchema,
+  fsDeleteSchema,
+  toolsExecSchema,
+  agentRunSchema,
+  wpScaffoldSchema,
+  backupImportSchema,
+  pipelineStartSchema,
+  agentsRunSchema,
+} from "./validation/schemas";
 
 dotenv.config();
+
+const anyUser = requireRole(["admin", "developer", "reviewer"]);
+const adminOnly = requireRole(["admin"]);
 
 async function startServer() {
   const app = express();
@@ -93,20 +112,25 @@ async function startServer() {
   });
 
   // Authentication login endpoint
-  app.post("/api/auth/login", async (req: Request, res: Response) => {
-    const { username, password } = req.body || {};
-    if (!username || !password) {
-      return res.status(400).json({ error: "Username and password are required" });
-    }
-    const session = await AuthService.authenticateUser(username, password);
-    if (session) {
-      return res.json({ status: "authenticated", user: session });
+  app.post("/api/auth/login", validateBody(loginSchema), async (req: Request, res: Response) => {
+    const { username, password } = req.body;
+    const result = await AuthService.authenticateUser(username, password);
+    if (result) {
+      return res.json({ status: "authenticated", user: result.session, token: result.token });
     }
     res.status(401).json({ error: "Invalid username or password" });
   });
 
+  // Logout — revoke the presented token
+  app.post("/api/auth/logout", anyUser, async (req: Request, res: Response) => {
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : undefined;
+    await AuthService.revokeToken(token);
+    res.json({ status: "logged_out" });
+  });
+
   // --- DATABASE ENTITY API ROUTES ---
-  app.get("/api/tasks", async (_req: Request, res: Response) => {
+  app.get("/api/tasks", anyUser, async (_req: Request, res: Response) => {
     const db = getDb();
     const rows = (await db.execute("SELECT * FROM tasks;")).rows;
     const tasks = rows.map((r) => ({
@@ -118,7 +142,7 @@ async function startServer() {
     res.json(tasks);
   });
 
-  app.post("/api/tasks", async (req: Request, res: Response) => {
+  app.post("/api/tasks", adminOnly, validateBody(taskCreateSchema), async (req: Request, res: Response) => {
     const db = getDb();
     const t = req.body;
     await db.execute({
@@ -148,7 +172,7 @@ async function startServer() {
     res.json({ status: "created", task: t });
   });
 
-  app.put("/api/tasks/:id", async (req: Request, res: Response) => {
+  app.put("/api/tasks/:id", adminOnly, validateBody(taskUpdateSchema), async (req: Request, res: Response) => {
     const db = getDb();
     const id = req.params.id;
     const t = req.body;
@@ -177,13 +201,13 @@ async function startServer() {
     res.json({ status: "updated", id });
   });
 
-  app.get("/api/sprints", async (_req: Request, res: Response) => {
+  app.get("/api/sprints", anyUser, async (_req: Request, res: Response) => {
     const db = getDb();
     const rows = (await db.execute("SELECT * FROM sprints;")).rows;
     res.json(rows);
   });
 
-  app.get("/api/agents", async (_req: Request, res: Response) => {
+  app.get("/api/agents", anyUser, async (_req: Request, res: Response) => {
     const db = getDb();
     const rows = (await db.execute("SELECT * FROM agents;")).rows;
     const agents = rows.map((r) => ({
@@ -193,7 +217,7 @@ async function startServer() {
     res.json(agents);
   });
 
-  app.get("/api/prompts", async (_req: Request, res: Response) => {
+  app.get("/api/prompts", anyUser, async (_req: Request, res: Response) => {
     const db = getDb();
     const rows = (await db.execute("SELECT * FROM prompts;")).rows;
     const prompts = rows.map((r) => ({
@@ -204,7 +228,7 @@ async function startServer() {
     res.json(prompts);
   });
 
-  app.get("/api/knowledge", async (_req: Request, res: Response) => {
+  app.get("/api/knowledge", anyUser, async (_req: Request, res: Response) => {
     const db = getDb();
     const rows = (await db.execute("SELECT * FROM knowledge_articles;")).rows;
     const articles = rows.map((r) => ({
@@ -214,14 +238,14 @@ async function startServer() {
     res.json(articles);
   });
 
-  app.get("/api/audit-logs", async (_req: Request, res: Response) => {
+  app.get("/api/audit-logs", adminOnly, async (_req: Request, res: Response) => {
     const db = getDb();
     const rows = (await db.execute("SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT 50;")).rows;
     res.json(rows);
   });
 
   // --- LOCAL AI ROUTER & CHAT ENDPOINT ---
-  app.post("/api/ai/chat", async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/ai/chat", anyUser, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const response = await AIRouter.routeAndExecute(req.body);
       res.json(response);
@@ -231,7 +255,7 @@ async function startServer() {
   });
 
   // Legacy Agent Chat Endpoint
-  app.post("/api/agent/chat", async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/agent/chat", anyUser, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const response = await AIRouter.routeAndExecute({
         systemPrompt: req.body.systemPrompt,
@@ -245,8 +269,26 @@ async function startServer() {
     }
   });
 
+  // --- AGENT LOOP (TOOL-CALLING) ENDPOINT ---
+  app.post("/api/agent/run", adminOnly, validateBody(agentRunSchema), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await AgentLoop.run({
+        goal: req.body.goal,
+        workspace: req.body.workspace,
+        model: req.body.model,
+        systemPrompt: req.body.systemPrompt,
+        maxIterations: req.body.maxIterations,
+        temperature: req.body.temperature,
+        provider: req.body.provider,
+      });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // --- FILESYSTEM API ENDPOINTS ---
-  app.get("/api/fs/list", (req: Request, res: Response) => {
+  app.get("/api/fs/list", anyUser, (req: Request, res: Response) => {
     const subPath = (req.query.path as string) || "";
     try {
       const items = FilesystemManager.listDirectory(subPath);
@@ -256,7 +298,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/fs/read", (req: Request, res: Response) => {
+  app.post("/api/fs/read", anyUser, validateBody(fsReadSchema), (req: Request, res: Response) => {
     const { path: filePath } = req.body;
     try {
       const content = FilesystemManager.readFile(filePath);
@@ -266,7 +308,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/fs/write", async (req: Request, res: Response) => {
+  app.post("/api/fs/write", adminOnly, validateBody(fsWriteSchema), async (req: Request, res: Response) => {
     const { path: filePath, content } = req.body;
     try {
       FilesystemManager.writeFile(filePath, content);
@@ -277,7 +319,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/fs/delete", async (req: Request, res: Response) => {
+  app.post("/api/fs/delete", adminOnly, validateBody(fsDeleteSchema), async (req: Request, res: Response) => {
     const { path: filePath } = req.body;
     try {
       FilesystemManager.deleteFile(filePath);
@@ -288,7 +330,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/tools/exec", async (req: Request, res: Response) => {
+  app.post("/api/tools/exec", adminOnly, validateBody(toolsExecSchema), async (req: Request, res: Response) => {
     const { command } = req.body;
     try {
       const sandbox = req.body.sandbox === true;
@@ -303,7 +345,7 @@ async function startServer() {
   });
 
   // --- WORDPRESS PROJECT FACTORY API ---
-  app.post("/api/wp/scaffold", async (req: Request, res: Response) => {
+  app.post("/api/wp/scaffold", adminOnly, validateBody(wpScaffoldSchema), async (req: Request, res: Response) => {
     try {
       const result = await ProjectFactory.buildProject(req.body);
       await logAudit("user", "BUILD_WP_PROJECT", "wp_project", req.body.name, { type: req.body.type });
@@ -314,41 +356,41 @@ async function startServer() {
   });
 
   // --- AGENT ORCHESTRATION RUNS API ---
-  app.post("/api/agents/run", async (req: Request, res: Response) => {
+  app.post("/api/agents/run", adminOnly, validateBody(agentsRunSchema), async (req: Request, res: Response) => {
     const { agentId, agentName, goal, projectType } = req.body;
     const run = await AgentOrchestrator.createAndExecuteRun(agentId, agentName, goal, projectType);
     res.json(run);
   });
 
-  app.get("/api/agents/runs", async (_req: Request, res: Response) => {
+  app.get("/api/agents/runs", anyUser, async (_req: Request, res: Response) => {
     const runs = await AgentOrchestrator.getAllRuns();
     res.json(runs);
   });
 
-  app.get("/api/agents/runs/:id", async (req: Request, res: Response) => {
+  app.get("/api/agents/runs/:id", anyUser, async (req: Request, res: Response) => {
     const run = await AgentOrchestrator.getRun(req.params.id);
     if (!run) return res.status(404).json({ error: "Run not found" });
     res.json(run);
   });
 
   // --- AUTONOMY PIPELINE API ---
-  app.post("/api/pipeline/start", async (req: Request, res: Response) => {
+  app.post("/api/pipeline/start", adminOnly, validateBody(pipelineStartSchema), async (req: Request, res: Response) => {
     const { projectName, projectType } = req.body;
     const pipeline = await AutonomyPipelineEngine.startPipeline(projectName, projectType);
     res.json(pipeline);
   });
 
-  app.get("/api/pipeline/all", (_req: Request, res: Response) => {
+  app.get("/api/pipeline/all", anyUser, (_req: Request, res: Response) => {
     res.json(AutonomyPipelineEngine.getAllPipelines());
   });
 
-  app.get("/api/pipeline/status/:id", (req: Request, res: Response) => {
+  app.get("/api/pipeline/status/:id", anyUser, (req: Request, res: Response) => {
     const pipe = AutonomyPipelineEngine.getPipeline(req.params.id);
     if (!pipe) return res.status(404).json({ error: "Pipeline run not found" });
     res.json(pipe);
   });
 
-  app.post("/api/pipeline/:runId/approve", async (req: Request, res: Response) => {
+  app.post("/api/pipeline/:runId/approve", adminOnly, async (req: Request, res: Response) => {
     try {
       const updated = await AutonomyPipelineEngine.approveStage(req.params.runId);
       res.json(updated);
@@ -357,7 +399,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/pipeline/:runId/reject", async (req: Request, res: Response) => {
+  app.post("/api/pipeline/:runId/reject", adminOnly, async (req: Request, res: Response) => {
     try {
       const updated = await AutonomyPipelineEngine.rejectStage(req.params.runId, req.body.reason);
       res.json(updated);
@@ -367,14 +409,14 @@ async function startServer() {
   });
 
   // --- RAG SEMANTIC SEARCH API ---
-  app.get("/api/search/semantic", async (req: Request, res: Response) => {
+  app.get("/api/search/semantic", anyUser, async (req: Request, res: Response) => {
     const q = (req.query.q as string) || "";
     const results = await LocalRAGSearchEngine.searchSemantic(q);
     res.json(results);
   });
 
   // --- ENCRYPTED BACKUP API ---
-  app.post("/api/backup/export", async (req: Request, res: Response) => {
+  app.post("/api/backup/export", adminOnly, async (req: Request, res: Response) => {
     const secretKey = req.body.secretKey || process.env.BACKUP_KEY;
     if (!secretKey) {
       return res.status(400).json({ error: "BACKUP_KEY is required to encrypt backups" });
@@ -383,7 +425,7 @@ async function startServer() {
     res.json(backup);
   });
 
-  app.post("/api/backup/import", async (req: Request, res: Response) => {
+  app.post("/api/backup/import", adminOnly, validateBody(backupImportSchema), async (req: Request, res: Response) => {
     const { encryptedData, iv, tag, secretKey } = req.body;
     if (!secretKey && !process.env.BACKUP_KEY) {
       return res.status(400).json({ error: "BACKUP_KEY is required to decrypt backups" });
@@ -397,17 +439,18 @@ async function startServer() {
   });
 
   // --- AUTOMATED TEST SUITE API ---
-  app.get("/api/tests/run", async (_req: Request, res: Response) => {
+  app.get("/api/tests/run", adminOnly, async (_req: Request, res: Response) => {
     const report = await runEnterpriseTestSuite();
     res.json(report);
   });
 
-  // Centralized Error Handling
+  // Centralized Error Handling — full detail logged server-side, generic shape to clients.
   app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-    logger.error(`API Error in ${req.method} ${req.path}`, err, { path: req.path });
+    const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    logger.error(`API Error in ${req.method} ${req.path} [${requestId}]`, err, { path: req.path, requestId });
     res.status(500).json({
       error: "Internal Server Error",
-      message: err.message || "An unexpected system error occurred.",
+      requestId,
     });
   });
 
